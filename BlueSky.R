@@ -173,5 +173,5 @@ g + geom_line(aes(x=dados$date,y=prediction),
 
 # O que vc acha?
 # Como podemos minimizar os residous para valores grandes de demanda?
-# Talvez criando mais uma variável para os dias de feriado?
+# Talvez criando mais uma variável para os dias de feriado? Mas como saber quando é feriado?
 # Mais alguma sugestão?
