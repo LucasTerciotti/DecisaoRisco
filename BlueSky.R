@@ -129,23 +129,24 @@ dados$month <- factor(dados$month)
 summary(dados$day)
 is.factor(dados$day)
 levels(dados$day)
-
+str(dados)
 #Regressão
 
-dados.fit <- lm(data=dados, demand ~ day + month)
+dados.fit1 <- lm(data=dados, demand ~ day + month)
 
+anova(dados.fit1)
 summary(dados.fit)
 
 
 # Incluindo um termo de interação dia-mês 
-dados.fit <- lm(data=dados, demand ~ day + month + day:month)
-
-summary(dados.fit)
+dados.fit2 <- lm(data=dados, demand ~ day + month + day:month)
+anova(dados.fit2)
+#summary(dados.fit)
 
 #ou formula: demand ~ day*month gera a mesma formula
 
-dados.fit <- lm(data=dados, demand ~ day*month)
-
+dados.fit3 <- lm(data=dados, demand ~ day*month)
+anova(dados.fit3)
 summary(dados.fit)
 
 #Plot residuals
@@ -155,20 +156,66 @@ plot(dados.fit)
 
 #plotando os valores previstos
 
-prediction <- predict(dados.fit,newdata = dados )
+prediction <- predict(dados.fit2,newdata = dados )
 
 g <- ggplot(dados, aes(x=date,y=demand)) +
   geom_point() +
   geom_line() 
-
+g
 #use fitted values or prediction
-g + geom_point(aes(x=dados$date,y=dados.fit$fitted.values), 
-               color = "red")
+k <- g + geom_point(aes(x=dados$date,y=dados.fit1$fitted.values), 
+               color = "yellow") #AMARELO PREVISÃO 1
 
 
-g + geom_line(aes(x=dados$date,y=prediction), 
-              linetype="dotdash",
+k + geom_point(aes(x=dados$date,y=prediction), 
               color = "blue")
+
+#criando uma coluna com "feriados", ou seja, altas demandas:
+i=0
+help("if")
+for(j in 1:365) i=dados$demand
+for(j in 1:365) f[j]="nao"
+for(j in 1:365) if(i[j]>125) f[j]="sim"
+dados$feriados <- f
+dados$feriados
+dados$feriados <- factor(dados$feriados)
+str(dados)
+
+dados.fit3 <- lm(data=dados, demand ~ day + month + day:month + feriados)
+anova(dados.fit3)
+summary(dados.fit3)
+
+kk <- k + geom_point(aes(x=dados$date,y=dados.fit3$fitted.values), 
+                    color = "red") #VERMELHO PREVISÃO 3
+l <- kk + geom_point(aes(x=dados$date,y=prediction), 
+                color = "blue") #AZUL PREVISÃO 2
+
+dados.fit4 <- lm(data=dados, demand ~ day + month + day:month + feriados + feriados:day)
+anova(dados.fit4)
+summary(dados.fit4)
+kkk <- l + geom_point(aes(x=dados$date,y=dados.fit4$fitted.values), 
+                     color = "green") #VERDE PREVISÃO 4
+kkk
+
+
+#e se pensarmos em Ferias?
+h=0
+
+for(j in 1:365) h[j]="0"
+for(j in 1:365) if(dados$month[j] == "dezembro" | dados$month[j] == "janeiro") h[j]="1"
+warnings()
+h
+
+dados$ferias <- h
+dados$ferias
+dados$ferias <- factor(dados$ferias)
+str(dados)
+
+dados.fit5 <- lm(data=dados, demand ~ ferias + day + month + feriados +day:month + feriados:day)
+anova(dados.fit5)
+summary(dados.fit5)
+#não apresenta nenhuma vantagem, já que os meses já foram contabilizados anteriormente.
+#Adicionar feriados e a contagem feriados:days levou à melhor regressão até o momento.
 
 
 # O que vc acha?
