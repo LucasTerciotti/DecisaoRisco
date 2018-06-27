@@ -1,0 +1,281 @@
+---
+title: "BlueSky"
+author: "Lucas Terciotti"
+output: html_document
+---
+##Estudo de caso BlueSky
+
+```{r message=FALSE, warning=FALSE}
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+dados <- read_excel("C:/Users/lucas/Desktop/Analise de Dados/DecisaoRisco/BlueSky_Single-Leg_demand.xls",
+                    range = "A6:B371", col_types = c("date","numeric"))
+```
+
+Gerando um gráfico de demanda por data:
+
+```{r}
+colnames(dados)[2] <- "demand"
+colnames(dados)[1] <- "date"
+
+#Plot
+g <- ggplot(dados, aes(x=date,y=demand)) +
+  geom_point() +
+  geom_line()
+g
+```
+
+Definir os valores para a taxa cheia e a taxa com desconto e encontrar o valor crítico:
+
+```{r}
+tarifa.full <- 174
+tarifa.low <- 114
+
+valor.critico <- (tarifa.full-tarifa.low)/tarifa.full
+
+```
+
+##Modelo 1 - Normal
+Vamos considerar que dados seguem uma distribuição normal, sem discrimar o dia da semana.
+
+```{r}
+media_1 <- mean(dados$demand)
+
+m_int <-round(media_1,0) #o inteiro mais próximo seguindo arrendondamento
+
+g <- g + geom_hline(yintercept =  media_1, color="blue",
+                    linetype = "longdash", size = 1)
+g
+```
+
+Sd e RMSE (considerando o valor fracionário):
+
+```{r}
+rmse_1 <- sd(dados$demand)
+
+protection_Level_1 <- qnorm(p=valor.critico,mean = media_1, sd = rmse_1 )
+
+protection_Level_1 <- round(protection_Level_1,0)
+protection_Level_1
+```
+
+Daqui sai o resultado do calculo de z. 
+59 seria o nível de proteção de assentos.
+
+##Modelo 2 - Empírico
+
+Vamos considerar que dados seguem uma distribuição empírica, sem discrimar o dia da semana.
+
+```{r}
+q.model2 <- quantile(dados$demand, c(valor.critico,0.5)) 
+
+q.model2
+
+protection_Level_2 <-  q.model2[[1]]
+
+protection_Level_2
+
+mediana_2 <-  q.model2[[2]]
+
+g <- g + geom_hline(yintercept =  mediana_2, color="red",
+                    linetype = "longdash", size = 1)
+g
+
+rmse_2 <- sqrt(mean((dados$demand - mediana_2)^2))
+rmse_2
+```
+
+56 seria o nível de proteção de assentos.
+
+##Modelo 3 - split por dias da semana (normal)
+
+####Maneira 1:
+```{r}
+dados$day <- weekdays(dados$date)
+
+dados_domingo <- dados %>%
+  filter(day == "domingo") 
+
+mean_domingo <- mean(dados_domingo$demand)
+
+sd_domingo   <- sd(dados_domingo$demand)
+
+```
+
+####Maneira 2:
+```{r}
+mean.days.normal <- dados %>%
+  group_by(day) %>%
+  summarise(media.N = mean(demand),
+            sd.N= sd(demand),
+            prot.Level.3 = round(qnorm(p=valor.critico,mean = media.N, sd = sd.N)))
+
+mean.days.normal
+```
+
+A tabela indica o nível de proteção para cada dia da semana na coluna "prot.Level.3".
+Adicionando essas informações à tabela inicial de dados, temos:
+
+```{r}
+mean.days.normal2 <- dados %>%
+  group_by(day) %>%
+  mutate(media.N = mean(demand),
+         sd.N= sd(demand),
+         prot.Level.3 = round(qnorm(p=valor.critico,mean = media.N, sd = sd.N),0)
+  )
+
+mean.days.normal2
+```
+
+Deixando a tabela de dados mais completa.
+
+```{r}
+rmse_3 <- sqrt(mean((mean.days.normal2$demand - mean.days.normal2$media.N)^2))
+rmse_3
+```
+
+
+##Modelo 4: Empírica por dia
+
+```{r}
+median.days.empirica <- dados %>%
+  group_by(day) %>%
+  mutate(mediana = median(demand),
+         prot.Level.4 = as.integer(quantile(demand,valor.critico))
+  )
+median.days.empirica
+
+rmse_4 <- sqrt(mean((median.days.empirica$demand - median.days.empirica$mediana)^2))
+rmse_4
+```
+
+
+##Modelo 5:Regressão (considerando mês e dia)
+
+####Preparação:
+```{r}
+dados$month <- months(dados$date)
+
+dados$day <- factor(dados$day)
+
+dados$month <- factor(dados$month)
+
+summary(dados$day)
+is.factor(dados$day)
+levels(dados$day)
+str(dados)
+```
+
+
+####Regressão 1:
+```{r}
+dados.fit1 <- lm(data=dados, demand ~ day + month)
+
+anova(dados.fit1)
+summary(dados.fit1)
+```
+
+####Regressao 2:
+Incluindo um termo de interação dia-mês 
+
+```{r}
+dados.fit2 <- lm(data=dados, demand ~ day + month + day:month)
+anova(dados.fit2)
+summary(dados.fit2)
+plot(dados.fit2)
+```
+
+#####Plotando os valores previstos:
+```{r}
+prediction <- predict(dados.fit2,newdata = dados )
+
+g <- ggplot(dados, aes(x=date,y=demand)) +
+  geom_point() +
+  geom_line() 
+
+#use fitted values or prediction
+k <- g + geom_point(aes(x=dados$date,y=dados.fit1$fitted.values), 
+                    color = "yellow") #AMARELO PREVISÃO 1
+
+
+k + geom_point(aes(x=dados$date,y=prediction), 
+               color = "blue")
+```
+
+Os pontos azuis são referentes às previsões da Regressão 2, enquanto que os pontos amarelos representam a Regressão 1. Percebe-se que a segunda regressão já foi capaz de prever valores mais próximos dos verificados nos dados.
+
+####Regressao 3: acrescentando uma coluna de feriados (altas demandas)
+
+```{r}
+i=0
+f=0
+#help("if")
+for(j in 1:365) i=dados$demand
+for(j in 1:365) f[j]="nao"
+for(j in 1:365) if(i[j]>100) f[j]="sim"
+dados$feriados <- f
+dados$feriados <- factor(dados$feriados)
+str(dados)
+
+dados.fit3 <- lm(data=dados, demand ~ day + month + day:month + feriados)
+anova(dados.fit3)
+summary(dados.fit3)
+```
+
+#####Plotando os valores previstos:
+```{r}
+kk <- k + geom_point(aes(x=dados$date,y=dados.fit3$fitted.values), 
+                     color = "red") #VERMELHO PREVISÃO 3
+l <- kk + geom_point(aes(x=dados$date,y=prediction), 
+                     color = "blue") #AZUL PREVISÃO 2
+l
+```
+Os pontos vermelhos representam a regressão 3, azuis a 2 e amarelos a 1. As previsões parecem estar mais próximas da realidade.
+
+####Regressão 4: Criando mais uma variavel conjunta entre feriados e dias
+
+```{r}
+dados.fit4 <- lm(data=dados, demand ~ day + month + day:month + feriados + feriados:day)
+anova(dados.fit4)
+summary(dados.fit4)
+kkk <- l + geom_point(aes(x=dados$date,y=dados.fit4$fitted.values), 
+                      color = "green") #VERDE PREVISÃO 4
+kkk
+```
+
+Os pontos verdes representam a regressão 4, os vermelhos a regressão 3, azuis a 2 e amarelos a 1. As previsões parecem estar ainda mais próximas da realidade.
+
+####Regressão 5: e se pensassemos em férias?
+```{r}
+h=0
+
+for(j in 1:365) h[j]="0"
+for(j in 1:365) if(dados$month[j] == "dezembro" | dados$month[j] == "janeiro") h[j]="1"
+warnings()
+
+dados$ferias <- h
+dados$ferias <- factor(dados$ferias)
+str(dados)
+
+dados.fit5 <- lm(data=dados, demand ~ ferias + day + month + feriados +day:month + feriados:day)
+anova(dados.fit5)
+summary(dados.fit5)
+```
+
+Não apresenta nenhuma vantagem, já que os meses já foram contabilizados anteriormente.
+Adicionar feriados e a contagem feriados:days levou à melhor regressão até o momento (regressão 4), pela avaliação dos resíduos, do RMSE e do valor de Rsquared.
+
+####Tabela com os valores críticos para cada dia gerado pelas 5 regressões:
+```{r}
+dados_R <- dados
+dados_R$R1 <- round(predict(dados.fit1))
+dados_R$R2 <- round(predict(dados.fit2))
+dados_R$R3 <- round(predict(dados.fit3))
+dados_R$R4 <- round(predict(dados.fit4))
+dados_R$R5 <- round(predict(dados.fit5))
+select(dados_R, demand, R1, R2, R3, R4, R5)
+
+```
+
+
