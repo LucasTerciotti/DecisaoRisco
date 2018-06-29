@@ -37,7 +37,7 @@ valor.critico <- (tarifa.full-tarifa.low)/tarifa.full
 ```
 
 ##Modelo 1 - Normal
-Vamos considerar que dados seguem uma distribuição normal, sem discrimar o dia da semana.
+Vamos considerar que os dados seguem uma distribuição normal, sem discrimar o dia da semana.
 
 ```{r}
 media_1 <- mean(dados$demand)
@@ -53,6 +53,7 @@ Sd e RMSE (considerando o valor fracionário):
 
 ```{r}
 rmse_1 <- sd(dados$demand)
+rmse_1
 
 protection_Level_1 <- qnorm(p=valor.critico,mean = media_1, sd = rmse_1 )
 
@@ -65,7 +66,7 @@ Daqui sai o resultado do calculo de z.
 
 ##Modelo 2 - Empírico
 
-Vamos considerar que dados seguem uma distribuição empírica, sem discrimar o dia da semana.
+Vamos considerar que os dados seguem uma distribuição empírica, sem discrimar o dia da semana.
 
 ```{r}
 q.model2 <- quantile(dados$demand, c(valor.critico,0.5)) 
@@ -86,7 +87,7 @@ rmse_2 <- sqrt(mean((dados$demand - mediana_2)^2))
 rmse_2
 ```
 
-56 seria o nível de proteção de assentos.
+56 seria o nível de proteção de assentos (traço em vermelho em contraste com o azul anterior - 59).
 
 ##Modelo 3 - split por dias da semana (normal)
 
@@ -125,10 +126,10 @@ mean.days.normal2 <- dados %>%
          prot.Level.3 = round(qnorm(p=valor.critico,mean = media.N, sd = sd.N),0)
   )
 
-mean.days.normal2
+head(mean.days.normal2)
 ```
 
-Deixando a tabela de dados mais completa.
+Deixando a tabela de dados mais completa. Abaixo o rmse do modelo 3:
 
 ```{r}
 rmse_3 <- sqrt(mean((mean.days.normal2$demand - mean.days.normal2$media.N)^2))
@@ -176,7 +177,7 @@ anova(dados.fit1)
 summary(dados.fit1)
 ```
 
-####Regressao 2:
+####Regressão 2:
 Incluindo um termo de interação dia-mês 
 
 ```{r}
@@ -205,7 +206,7 @@ k + geom_point(aes(x=dados$date,y=prediction),
 
 Os pontos azuis são referentes às previsões da Regressão 2, enquanto que os pontos amarelos representam a Regressão 1. Percebe-se que a segunda regressão já foi capaz de prever valores mais próximos dos verificados nos dados.
 
-####Regressao 3: acrescentando uma coluna de feriados (altas demandas)
+####Regressão 3: acrescentando uma coluna de feriados (altas demandas)
 
 ```{r}
 i=0
@@ -264,7 +265,7 @@ summary(dados.fit5)
 ```
 
 Não apresenta nenhuma vantagem, já que os meses já foram contabilizados anteriormente.
-Adicionar feriados e a contagem feriados:days levou à melhor regressão até o momento (regressão 4), pela avaliação dos resíduos, do RMSE e do valor de Rsquared.
+Adicionar feriados e a contagem feriados:days levou à melhor regressão até o momento (regressão 4), pela avaliação dos resíduos, do RMSE e do valor de R-squared.
 
 ####Tabela com os valores críticos para cada dia gerado pelas 5 regressões:
 ```{r}
